@@ -21,12 +21,16 @@ public class User {
     @Column(name = "registration_date")
     private LocalDate registrationDate;
 
+    @Column(name = "last_logged_in")
+    private LocalDate lastLoggedIn;
+
 
     public User(String userName, String password, int age, LocalDate registrationDate) {
         this.username = userName;
         this.password = password;
         this.age = age;
         this.registrationDate = registrationDate;
+        this.lastLoggedIn = LocalDate.now();
     }
 
     public User() {

@@ -11,7 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.util.Arrays;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class EntityManager<E> implements DBContext<E> {
@@ -19,6 +19,65 @@ public class EntityManager<E> implements DBContext<E> {
     private static final String INSERT_QUERY = "INSERT INTO %s (%s) VALUES (%s);";
     private static final String SELECT_QUERY_SINGLE = "SELECT * FROM %s %s LIMIT 1";
     private final Connection connection;
+
+    private static String getSQLType(Class<?> type) {
+        String sqlType = "";
+        if (type == Integer.class || type == int.class) {
+            sqlType = "INT";
+        } else if (type == String.class) {
+            sqlType = "VARCHAR(200)";
+        } else if (type == LocalDate.class) {
+            sqlType = "DATE";
+        }
+        return sqlType;
+    }
+
+    public void doCreate(Class<E> entityClass) throws SQLException {
+        String tableName = getTableName(entityClass);
+        String fieldsWithTypes = getSQLFieldsWithTypes(entityClass);
+
+        String createQuery = String.format("CREATE TABLE %s (" +
+                        "id INT PRIMARY KEY AUTO_INCREMENT, %s)",
+                tableName, fieldsWithTypes);
+
+        PreparedStatement statement = connection.prepareStatement(createQuery);
+        statement.execute();
+    }
+
+    public void doAlter(Class<E> entityClass) throws SQLException {
+        String tableName = getTableName(entityClass);
+        String addColumnStatements = getAddColumnStatementsForNewFields(entityClass);
+
+        String alterQuery = String.format("ALTER TABLE %s %s", tableName, addColumnStatements);
+
+        PreparedStatement statement = connection.prepareStatement(alterQuery);
+        statement.execute();
+
+    }
+
+    private String getAddColumnStatementsForNewFields(Class<E> entityClass) throws SQLException {
+        Set<String> sqlColumns = getSQLColumnNames(entityClass);
+
+        List<Field> fields = Arrays.stream(entityClass.getDeclaredFields())
+                .filter(f -> !f.isAnnotationPresent(Id.class))
+                .filter(f -> f.isAnnotationPresent(Column.class))
+                .collect(Collectors.toList());
+
+        List<String> allAddStatements = new ArrayList<>();
+        for (Field field : fields) {
+            String fieldName = field.getAnnotationsByType(Column.class)[0].name();
+
+            if (sqlColumns.contains(fieldName)) {
+                continue;
+            }
+            String sqlType = getSQLType(field.getType());
+
+            String addStatement = String.format("ADD COLUMN %s %s", fieldName, sqlType);
+            allAddStatements.add(addStatement);
+        }
+        return String.join(",", allAddStatements);
+    }
+
 
     public EntityManager(Connection connection) {
         this.connection = connection;
@@ -174,5 +233,40 @@ public class EntityManager<E> implements DBContext<E> {
             throw new UnsupportedOperationException("Entity must have entity annotation");
         }
         return annotation.name();
+    }
+
+    private Set<String> getSQLColumnNames(Class<E> entityClass) throws SQLException {
+
+        String schemaQuery = "SELECT COLUMN_NAME FROM information_schema.COLUMNS c" +
+                " WHERE c.TABLE_SCHEMA = 'custom_orm' " +
+                " AND COLUMN_NAME !='id'" +
+                " AND TABLE_NAME = 'users';";
+
+        PreparedStatement statement = connection.prepareStatement(schemaQuery);
+        ResultSet resultSet = statement.executeQuery();
+
+        Set<String> result = new HashSet<>();
+        while (resultSet.next()) {
+            String columnName = resultSet.getString("COLUMN_NAME");
+
+            result.add(columnName);
+        }
+
+        return result;
+
+    }
+
+    private String getSQLFieldsWithTypes(Class<E> entityClass) {
+
+        return Arrays.stream(entityClass.getDeclaredFields())
+                .filter(f -> !f.isAnnotationPresent(Id.class))
+                .filter(f -> f.isAnnotationPresent(Column.class))
+                .map(field -> {
+                    String fieldName = field.getAnnotationsByType(Column.class)[0].name();
+                    String sqlType = getSQLType(field.getType());
+
+                    return fieldName + " " + sqlType;
+                })
+                .collect(Collectors.joining(","));
     }
 }
