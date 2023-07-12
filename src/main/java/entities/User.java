@@ -29,6 +29,10 @@ public class User {
         this.registrationDate = registrationDate;
     }
 
+    public User() {
+
+    }
+
     public int getId() {
         return id;
     }
@@ -69,5 +73,14 @@ public class User {
         this.registrationDate = registrationDate;
     }
 
-
+    @Override
+    public String toString() {
+        return "User{" +
+                "id=" + id +
+                ", username='" + username + '\'' +
+                ", password='" + password + '\'' +
+                ", age=" + age +
+                ", registrationDate=" + registrationDate +
+                '}';
+    }
 }
