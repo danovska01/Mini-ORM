@@ -1,19 +1,29 @@
 package entities;
 
+import orm.anotations.Column;
+import orm.anotations.Entity;
+import orm.anotations.Id;
+
 import java.time.LocalDate;
 
+@Entity(name = "users")
 public class User {
+    @Column(name = "id")
+    @Id
     private int id;
-    private String userName;
-
+    @Column(name = "username")
+    private String username;
+    @Column(name = "password")
     private String password;
-
+    @Column(name = "age")
     private int age;
+
+    @Column(name = "registration_date")
     private LocalDate registrationDate;
 
 
     public User(String userName, String password, int age, LocalDate registrationDate) {
-        this.userName = userName;
+        this.username = userName;
         this.password = password;
         this.age = age;
         this.registrationDate = registrationDate;
@@ -27,12 +37,12 @@ public class User {
         this.id = id;
     }
 
-    public String getUserName() {
-        return userName;
+    public String getUsername() {
+        return username;
     }
 
-    public void setUserName(String userName) {
-        this.userName = userName;
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getPassword() {
