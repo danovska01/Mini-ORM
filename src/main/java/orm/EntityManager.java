@@ -55,6 +55,24 @@ public class EntityManager<E> implements DBContext<E> {
 
     }
 
+    @Override
+    public boolean delete(E toDelete) throws IllegalAccessException, SQLException {
+        String tableName = getTableName(toDelete.getClass());
+        Field idColumn = getIdField(toDelete.getClass());
+
+        String idColumnName = idColumn.getAnnotationsByType(Column.class)[0].name();
+
+        idColumn.setAccessible(true);
+        Object idColumnValue = idColumn.get(toDelete);
+
+        String query = String.format("DELETE FROM %s WHERE %s = %s",
+                tableName, idColumnName, idColumnValue);
+
+        PreparedStatement statement = connection.prepareStatement(query);
+        return statement.execute();
+
+    }
+
     private String getAddColumnStatementsForNewFields(Class<E> entityClass) throws SQLException {
         Set<String> sqlColumns = getSQLColumnNames(entityClass);
 
@@ -99,16 +117,33 @@ public class EntityManager<E> implements DBContext<E> {
     }
 
 
-
     @Override
-    public Iterable<E> find(Class<E> table) {
+    public Iterable<E> find(Class<E> table) throws SQLException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
         return find(table, null);
     }
 
     @Override
-    public Iterable<E> find(Class<E> table, String where) {
-        return null;
+    public Iterable<E> find(Class<E> table, String where) throws SQLException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+        String tableName = getTableName(table);
+        String actualWhere = where == null ? "" : "WHERE " + where;
+        String query = String.format("SELECT * FROM %s %s", tableName, actualWhere);
+
+        PreparedStatement preparedStatement = connection.prepareStatement(query);
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        if (!resultSet.next()) {
+            return Collections.emptyList();
+        }
+
+        List<E> entities = new ArrayList<>();
+        do {
+            E entity = createEntity(table, resultSet);
+            entities.add(entity);
+        } while (resultSet.next());
+
+        return entities;
     }
+
 
     @Override
     public E findFirst(Class<E> table) throws SQLException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
@@ -119,7 +154,7 @@ public class EntityManager<E> implements DBContext<E> {
     public E findFirst(Class<E> table, String where) throws SQLException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
 
         String tableName = getTableName(table);
-        String actualWhere = where == null ? "" : where;
+        String actualWhere = where == null ? "" : "WHERE " + where;
         String query = String.format(SELECT_QUERY_SINGLE, tableName, actualWhere);
 
         PreparedStatement preparedStatement = connection.prepareStatement(query);
@@ -159,7 +194,12 @@ public class EntityManager<E> implements DBContext<E> {
             value = resultSet.getInt(fieldName);
         } else if (fieldType == LocalDate.class) {
             String stringDate = resultSet.getString(fieldName);
-            value = LocalDate.parse(stringDate);
+            if (stringDate != null) {
+                value = LocalDate.parse(stringDate);
+            } else {
+                // Provide a default value or handle the null case appropriately
+                value = null; // Example: value = LocalDate.now();
+            }
         } else {
             value = resultSet.getString(fieldName);
         }
