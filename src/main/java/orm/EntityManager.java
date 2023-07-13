@@ -93,11 +93,11 @@ public class EntityManager<E> implements DBContext<E> {
             return insertEntity(entity);
         }
 
-        return false;
-        //return updateEntity(entity);
+      return doUpdate(entity, (Integer) idValue);
 
 
     }
+
 
 
     @Override
@@ -181,7 +181,6 @@ public class EntityManager<E> implements DBContext<E> {
 
     }
 
-
     private boolean insertEntity(E entity) throws SQLException {
 
         String tableName = getTableName(entity.getClass());
@@ -193,6 +192,30 @@ public class EntityManager<E> implements DBContext<E> {
         PreparedStatement statement = this.connection.prepareStatement(query);
         return statement.executeUpdate() == 1;
 
+    }
+
+
+    private boolean doUpdate(E entity, int idValue) throws SQLException, IllegalAccessException {
+        String tableName = getTableName(entity.getClass());
+        String tableFieldsStr = getFieldNamesWithoutId(entity.getClass());
+        List<String> tableFields = Arrays.asList(tableFieldsStr.split(","));
+        String tableValuesStr = getFieldNamesWithoutId(entity);
+        List<String> tableValues = Arrays.asList(tableValuesStr.split(","));
+
+        int size = tableFields.size();
+
+
+        List<String> setStatements = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            String statement = tableFields.get(i) + " = " + tableValues.get(i);
+            setStatements.add(statement);
+        }
+
+        String updateQuery = String.format("UPDATE %s SET %s WHERE id = %d", tableName, String.join(",", setStatements), idValue);
+
+        PreparedStatement statement = connection.prepareStatement(updateQuery);
+
+        return statement.execute();
     }
 
 
